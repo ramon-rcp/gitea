@@ -203,6 +203,14 @@ func GetAttachmentLinkedTypeAndRepoID(ctx context.Context, a *repo_model.Attachm
 		}
 		return unit.TypeReleases, rel.RepoID, nil
 	}
+
+	if a.CommitCommentID != 0 {
+		cc, err := issues_model.GetCommitCommentByID(ctx, a.CommitCommentID)
+		if err != nil {
+			return unit.TypeCode, 0, err
+		}
+		return unit.TypeCode, cc.RepoID, nil
+	}
 	return unit.TypeInvalid, 0, nil
 }
 
