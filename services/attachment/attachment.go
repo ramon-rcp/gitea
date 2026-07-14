@@ -67,6 +67,10 @@ func UploadAttachmentForRelease(ctx context.Context, file *UploaderFile, attach 
 	return uploadAttachment(ctx, file, setting.Repository.Release.AllowedTypes, setting.Repository.Release.FileMaxSize<<20, attach)
 }
 
+func UploadAttachmentForCommitComment(ctx context.Context, file *UploaderFile, attach *repo_model.Attachment) (*repo_model.Attachment, error) {
+	return uploadAttachment(ctx, file, setting.Attachment.AllowedTypes, setting.Attachment.MaxSize<<20, attach)
+}
+
 func uploadAttachment(ctx context.Context, file *UploaderFile, allowedTypes string, maxFileSize int64, attach *repo_model.Attachment) (*repo_model.Attachment, error) {
 	src := file.rd
 	if file.size < 0 {
