@@ -43,6 +43,11 @@ func UploadReleaseAttachment(ctx *context.Context) {
 	uploadAttachment(ctx, ctx.Repo.Repository.ID, attachment.UploadAttachmentForRelease)
 }
 
+// UploadCommitCommentAttachment response for uploading commit comment attachments
+func UploadCommitCommentAttachment(ctx *context.Context) {
+	uploadAttachment(ctx, ctx.Repo.Repository.ID, attachment.UploadAttachmentForCommitComment)
+}
+
 // UploadAttachment response for uploading attachments
 func uploadAttachment(ctx *context.Context, repoID int64, uploadFunc attachment.UploadAttachmentFunc) {
 	if !setting.Attachment.Enabled {
@@ -110,6 +115,11 @@ func DeleteAttachment(ctx *context.Context) {
 			}
 		} else if attach.ReleaseID > 0 {
 			if !ctx.Repo.Permission.CanWrite(unit.TypeReleases) {
+				ctx.HTTPError(http.StatusForbidden)
+				return
+			}
+		} else if attach.CommitCommentID > 0 {
+			if !ctx.Repo.Permission.CanWrite(unit.TypeCode) {
 				ctx.HTTPError(http.StatusForbidden)
 				return
 			}
