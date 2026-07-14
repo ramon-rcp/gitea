@@ -15,10 +15,12 @@ import (
 	"gitea.dev/modules/git"
 	"gitea.dev/modules/markup/markdown"
 	"gitea.dev/modules/setting"
+	api "gitea.dev/modules/structs"
 	"gitea.dev/modules/templates"
 	"gitea.dev/modules/web"
 	"gitea.dev/services/context"
 	"gitea.dev/services/context/upload"
+	"gitea.dev/services/convert"
 	"gitea.dev/services/forms"
 	issue_service "gitea.dev/services/issue"
 )
@@ -128,6 +130,18 @@ func UpdateCommitCommentContentRoute(ctx *context.Context) {
 		}
 	}
 
+	if err := comment.LoadAttachments(ctx); err != nil {
+		ctx.ServerError("LoadAttachments", err)
+		return
+	}
+
+	// the shared edit-content JS (repo-issue-edit.ts) always submits the dropzone's
+	// current file list, regardless of comment type, so this must always run
+	if err := updateAttachments(ctx, comment, ctx.FormStrings("files[]")); err != nil {
+		ctx.ServerError("updateAttachments", err)
+		return
+	}
+
 	var renderedContent template.HTML
 	if comment.Content != "" {
 		rctx := renderhelper.NewRenderContextRepoComment(ctx, ctx.Repo.Repository, renderhelper.RepoCommentOptions{
@@ -143,6 +157,7 @@ func UpdateCommitCommentContentRoute(ctx *context.Context) {
 	ctx.JSON(http.StatusOK, map[string]any{
 		"content":        commentContentHTML(ctx, renderedContent),
 		"contentVersion": comment.ContentVersion,
+		"attachments":    attachmentsHTML(ctx, comment.Attachments, comment.Content),
 	})
 }
 
@@ -170,4 +185,30 @@ func DeleteCommitCommentRoute(ctx *context.Context) {
 	}
 
 	ctx.Status(http.StatusOK)
+}
+
+// GetCommitCommentAttachments returns attachments for the commit comment; used by the
+// edit-content dropzone (web_src/js/features/dropzone.ts) to list already-uploaded files
+func GetCommitCommentAttachments(ctx *context.Context) {
+	comment, err := issues_model.GetCommitCommentByID(ctx, ctx.PathParamInt64("id"))
+	if err != nil {
+		ctx.NotFoundOrServerError("GetCommitCommentByID", issues_model.IsErrCommitCommentNotExist, err)
+		return
+	}
+
+	if comment.RepoID != ctx.Repo.Repository.ID {
+		ctx.NotFound(issues_model.ErrCommitCommentNotExist{})
+		return
+	}
+
+	if err := comment.LoadAttachments(ctx); err != nil {
+		ctx.ServerError("LoadAttachments", err)
+		return
+	}
+
+	attachments := make([]*api.Attachment, 0, len(comment.Attachments))
+	for _, a := range comment.Attachments {
+		attachments = append(attachments, convert.ToAttachment(ctx.Repo.Repository, a))
+	}
+	ctx.JSON(http.StatusOK, attachments)
 }
