@@ -244,8 +244,8 @@ export function initRepoPullRequestReview() {
     handleReply(el);
   });
 
-  // The following part is only for diff views
-  if (!document.querySelector('.repository.pull.diff')) return;
+  // The following part is only for diff views (PR "Files changed" tab or a plain commit page)
+  if (!document.querySelector('.repository.diff')) return;
 
   const elReviewBtn = document.querySelector('.js-btn-review');
   const elReviewPanel = document.querySelector('.review-box-panel.tippy-target');

@@ -593,6 +593,8 @@ func updateAttachments(ctx *context.Context, item any, files []string) error {
 		attachments = content.Attachments
 	case *issues_model.Comment:
 		attachments = content.Attachments
+	case *issues_model.CommitComment:
+		attachments = content.Attachments
 	default:
 		return fmt.Errorf("unknown Type: %T", content)
 	}
@@ -611,6 +613,8 @@ func updateAttachments(ctx *context.Context, item any, files []string) error {
 			err = issues_model.UpdateIssueAttachments(ctx, content.ID, files)
 		case *issues_model.Comment:
 			err = issues_model.UpdateCommentAttachments(ctx, content, files)
+		case *issues_model.CommitComment:
+			err = issues_model.UpdateCommitCommentAttachments(ctx, content, files)
 		default:
 			return fmt.Errorf("unknown Type: %T", content)
 		}
@@ -623,6 +627,8 @@ func updateAttachments(ctx *context.Context, item any, files []string) error {
 		content.Attachments, err = repo_model.GetAttachmentsByIssueID(ctx, content.ID)
 	case *issues_model.Comment:
 		content.Attachments, err = repo_model.GetAttachmentsByCommentID(ctx, content.ID)
+	case *issues_model.CommitComment:
+		content.Attachments, err = repo_model.GetAttachmentsByCommitCommentID(ctx, content.ID)
 	default:
 		return fmt.Errorf("unknown Type: %T", content)
 	}
