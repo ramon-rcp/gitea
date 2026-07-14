@@ -26,7 +26,7 @@ func AddCommitCommentTable(x db.EngineMigration) error {
 	}
 
 	type Attachment struct {
-		CommitCommentID int64 `xorm:"INDEX"`
+		CommitCommentID int64 `xorm:"INDEX DEFAULT 0"`
 	}
 	return x.Sync(new(Attachment))
 }

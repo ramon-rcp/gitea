@@ -30,7 +30,7 @@ type Attachment struct {
 	ReleaseID         int64  `xorm:"INDEX"`           // maybe zero when creating
 	UploaderID        int64  `xorm:"INDEX DEFAULT 0"` // Notice: will be zero before this column added
 	CommentID         int64  `xorm:"INDEX"`
-	CommitCommentID   int64  `xorm:"INDEX"` // maybe zero when creating; distinct from CommentID, which points into the "comment" table
+	CommitCommentID   int64  `xorm:"INDEX DEFAULT 0"` // Notice: will be zero before this column added; distinct from CommentID, which points into the "comment" table
 	Name              string
 	DownloadCount     int64              `xorm:"DEFAULT 0"`
 	Size              int64              `xorm:"DEFAULT 0"`
