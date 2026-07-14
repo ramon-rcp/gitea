@@ -1,0 +1,23 @@
+{{/* Minimal context menu for commit comments: copy link/source, quote-reply, edit, delete.
+No "reference issue" or "block user" items (no issue cross-referencing for commit comments in v1),
+and no reactions/resolve-conversation (no such concepts for a standalone commit comment). */}}
+<div class="item action ui dropdown jump pointing top right context-dropdown">
+	<a class="context-menu muted">
+		{{svg "octicon-kebab-horizontal"}}
+	</a>
+	<div class="menu">
+		{{$referenceLink := printf "%s/commit/%s#%s" $.root.RepoLink $.root.CommitID .item.HashTag}}
+		<div class="item context js-aria-clickable" data-clipboard-text="{{ctx.AppFullLink}}{{$referenceLink}}">{{ctx.Locale.Tr "repo.issues.context.copy_link"}}</div>
+		<div class="item context js-aria-clickable" data-clipboard-target="#{{.item.HashTag}}-raw">{{ctx.Locale.Tr "repo.issues.context.copy_source"}}</div>
+		{{if $.root.IsSigned}}
+			{{if not $.root.Repository.IsArchived}}
+				<div class="item context js-aria-clickable quote-reply quote-reply-diff" data-target="{{.item.HashTag}}-raw">{{ctx.Locale.Tr "repo.issues.context.quote_reply"}}</div>
+				{{if or $.root.Permission.IsAdmin .IsCommentPoster ($.root.Permission.CanWrite ctx.Consts.RepoUnitTypeCode)}}
+					<div class="divider"></div>
+					<div class="item context js-aria-clickable edit-content">{{ctx.Locale.Tr "repo.issues.context.edit"}}</div>
+					<div class="item context js-aria-clickable delete-comment" data-comment-id="{{.item.HashTag}}" data-url="{{$.root.RepoLink}}/commit-comments/{{.item.ID}}/delete" data-locale="{{ctx.Locale.Tr "repo.issues.delete_comment_confirm"}}">{{ctx.Locale.Tr "repo.issues.context.delete"}}</div>
+				{{end}}
+			{{end}}
+		{{end}}
+	</div>
+</div>
