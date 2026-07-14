@@ -32,6 +32,7 @@ import (
 	"gitea.dev/modules/util"
 	asymkey_service "gitea.dev/services/asymkey"
 	"gitea.dev/services/context"
+	"gitea.dev/services/context/upload"
 	git_service "gitea.dev/services/git"
 	"gitea.dev/services/gitdiff"
 	repo_service "gitea.dev/services/repository"
@@ -369,6 +370,16 @@ func Diff(ctx *context.Context) {
 	ctx.Data["Commit"] = commit
 	ctx.Data["Diff"] = diff
 	ctx.Data["DiffBlobExcerptData"] = diffBlobExcerptData
+
+	if ctx.Data["PageIsWiki"] == nil {
+		ctx.Data["PageIsCommitFiles"] = true
+		ctx.Data["IsAttachmentEnabled"] = setting.Attachment.Enabled
+		upload.AddUploadContext(ctx, "commit_comment")
+		if err := diff.LoadCommitComments(ctx, ctx.Repo.Repository, commitID); err != nil {
+			ctx.ServerError("LoadCommitComments", err)
+			return
+		}
+	}
 
 	if !fileOnly {
 		diffTree, err := gitdiff.GetDiffTree(ctx, gitRepo, false, parentCommitID, commitID)

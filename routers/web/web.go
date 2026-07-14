@@ -1464,6 +1464,17 @@ func registerWebRoutes(m *web.Router, webAuth *AuthMiddleware) {
 		}, context.RepoMustNotBeArchived(), reqRepoCodeWriter, repo.MustBeNotEmpty)
 
 		m.Combo("/fork").Get(repo.Fork).Post(web.Bind(forms.CreateRepoForm{}), repo.ForkPost)
+
+		m.Group("/commit/{sha:([a-f0-9]{7,64})$}", func() {
+			m.Post("/comments", web.Bind(forms.CommitCommentForm{}), repo.CreateCommitComment)
+			m.Post("/attachments", repo.UploadCommitCommentAttachment)
+			m.Post("/attachments/remove", repo.DeleteAttachment)
+		}, context.RepoMustNotBeArchived(), repo.MustBeNotEmpty)
+
+		m.Group("/commit-comments/{id}", func() {
+			m.Post("", repo.UpdateCommitCommentContentRoute)
+			m.Post("/delete", repo.DeleteCommitCommentRoute)
+		}, context.RepoMustNotBeArchived(), repo.MustBeNotEmpty)
 	}, reqSignIn, context.RepoAssignment, reqUnitCodeReader)
 	// end "/{username}/{reponame}": repo code
 
@@ -1712,6 +1723,7 @@ func registerWebRoutes(m *web.Router, webAuth *AuthMiddleware) {
 			m.Get("/graph", repo.Graph)
 			m.Get("/commit/{sha:([a-f0-9]{7,64})$}", repo.SetEditorconfigIfExists, repo.SetDiffViewStyle, repo.SetWhitespaceBehavior, repo.Diff)
 			m.Get("/commit/{sha:([a-f0-9]{7,64})$}/load-branches-and-tags", repo.LoadBranchesAndTags)
+			m.Get("/commit/{sha:([a-f0-9]{7,64})$}/comments/new_comment", repo.RenderNewCommitCommentForm)
 
 			// FIXME: this route `/cherry-pick/{sha}` doesn't seem useful or right, the new code always uses `/_cherrypick/` which could handle branch name correctly
 			m.Get("/cherry-pick/{sha:([a-f0-9]{7,64})$}", repo.SetEditorconfigIfExists, context.RepoRefByDefaultBranch(), repo.CherryPick)
