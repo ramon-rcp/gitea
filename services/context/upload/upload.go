@@ -108,6 +108,14 @@ func AddUploadContext(ctx *context.Context, uploadType string) {
 		ctx.Data["UploadAccepts"] = strings.ReplaceAll(setting.Attachment.AllowedTypes, "|", ",")
 		ctx.Data["UploadMaxFiles"] = setting.Attachment.MaxFiles
 		ctx.Data["UploadMaxSize"] = setting.Attachment.MaxSize
+	case "commit_comment":
+		sha := url.PathEscape(ctx.PathParam("sha"))
+		ctx.Data["UploadUrl"] = ctx.Repo.RepoLink + "/commit/" + sha + "/attachments"
+		ctx.Data["UploadRemoveUrl"] = ctx.Repo.RepoLink + "/commit/" + sha + "/attachments/remove"
+		ctx.Data["UploadLinkUrl"] = ctx.Repo.RepoLink + "/commit/" + sha + "/attachments"
+		ctx.Data["UploadAccepts"] = strings.ReplaceAll(setting.Attachment.AllowedTypes, "|", ",")
+		ctx.Data["UploadMaxFiles"] = setting.Attachment.MaxFiles
+		ctx.Data["UploadMaxSize"] = setting.Attachment.MaxSize
 	default:
 		setting.PanicInDevOrTesting("Invalid upload type: %s", uploadType)
 	}
