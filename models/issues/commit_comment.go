@@ -224,6 +224,24 @@ func UpdateCommitCommentAttachments(ctx context.Context, c *CommitComment, uuids
 	})
 }
 
+// UpdateCommitComment persists an edited commit comment, guarded by optimistic
+// concurrency on ContentVersion (mirrors Comment's UpdateComment). c.Content must
+// already hold the new content; the caller is expected to have set it beforehand.
+func UpdateCommitComment(ctx context.Context, c *CommitComment, contentVersion int) error {
+	return db.WithTx(ctx, func(ctx context.Context) error {
+		c.ContentVersion = contentVersion + 1
+
+		affected, err := db.GetEngine(ctx).ID(c.ID).AllCols().Where("content_version = ?", contentVersion).Update(c)
+		if err != nil {
+			return err
+		}
+		if affected == 0 {
+			return ErrCommentAlreadyChanged
+		}
+		return nil
+	})
+}
+
 // GetCommitCommentByID returns a commit comment by ID
 func GetCommitCommentByID(ctx context.Context, id int64) (*CommitComment, error) {
 	c := new(CommitComment)
