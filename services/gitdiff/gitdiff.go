@@ -22,6 +22,7 @@ import (
 	git_model "gitea.dev/models/git"
 	issues_model "gitea.dev/models/issues"
 	pull_model "gitea.dev/models/pull"
+	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 	"gitea.dev/modules/analyze"
 	"gitea.dev/modules/base"
@@ -72,13 +73,14 @@ const (
 
 // DiffLine represents a line difference in a DiffSection.
 type DiffLine struct {
-	LeftIdx     int // line number, 1-based
-	RightIdx    int // line number, 1-based
-	Match       int // the diff matched index. -1: no match. 0: plain and no need to match. >0: for add/del, "Lines" slice index of the other side
-	Type        DiffLineType
-	Content     string
-	Comments    issues_model.CommentList // related PR code comments
-	SectionInfo *DiffLineSectionInfo
+	LeftIdx        int // line number, 1-based
+	RightIdx       int // line number, 1-based
+	Match          int // the diff matched index. -1: no match. 0: plain and no need to match. >0: for add/del, "Lines" slice index of the other side
+	Type           DiffLineType
+	Content        string
+	Comments       issues_model.CommentList       // related PR code comments
+	CommitComments issues_model.CommitCommentList // related commit-page comments, independent of any PR
+	SectionInfo    *DiffLineSectionInfo
 }
 
 // DiffLineSectionInfo represents diff line section meta data
@@ -155,15 +157,18 @@ func (d *DiffLine) GetHTMLDiffLineType() string {
 
 // CanComment returns whether a line can get commented
 func (d *DiffLine) CanComment() bool {
-	return len(d.Comments) == 0 && d.Type != DiffLineSection
+	return len(d.Comments) == 0 && len(d.CommitComments) == 0 && d.Type != DiffLineSection
 }
 
 // GetCommentSide returns the comment side of the first comment, if not set returns empty string
 func (d *DiffLine) GetCommentSide() string {
-	if len(d.Comments) == 0 {
-		return ""
+	if len(d.Comments) > 0 {
+		return d.Comments[0].DiffSide()
 	}
-	return d.Comments[0].DiffSide()
+	if len(d.CommitComments) > 0 {
+		return d.CommitComments[0].DiffSide()
+	}
+	return ""
 }
 
 // GetLineTypeMarker returns the line type marker
@@ -618,6 +623,34 @@ func (diff *Diff) LoadComments(ctx context.Context, issue *issues_model.Issue, c
 					})
 					// Mark expand buttons that have comments in hidden lines
 					FillHiddenCommentIDsForDiffLine(line, lineCommits)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// LoadCommitComments loads commit-page comments (independent of any PR) into each line.
+// Unlike LoadComments, there's no "outdated" filtering to apply: a commit SHA is
+// immutable, so every comment on it is always current.
+func (diff *Diff) LoadCommitComments(ctx context.Context, repo *repo_model.Repository, commitSHA string) error {
+	allComments, err := issues_model.FetchCommitCodeComments(ctx, repo, commitSHA)
+	if err != nil {
+		return err
+	}
+	for _, file := range diff.Files {
+		if lineCommits, ok := allComments[file.Name]; ok {
+			for _, section := range file.Sections {
+				for _, line := range section.Lines {
+					if comments, ok := lineCommits[int64(line.LeftIdx*-1)]; ok {
+						line.CommitComments = append(line.CommitComments, comments...)
+					}
+					if comments, ok := lineCommits[int64(line.RightIdx)]; ok {
+						line.CommitComments = append(line.CommitComments, comments...)
+					}
+					sort.SliceStable(line.CommitComments, func(i, j int) bool {
+						return line.CommitComments[i].CreatedUnix < line.CommitComments[j].CreatedUnix
+					})
 				}
 			}
 		}
