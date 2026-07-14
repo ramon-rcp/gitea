@@ -8,16 +8,31 @@ import (
 
 	activities_model "gitea.dev/models/activities"
 	"gitea.dev/models/db"
+	issues_model "gitea.dev/models/issues"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unit"
 	"gitea.dev/models/unittest"
+	user_model "gitea.dev/models/user"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAttachLinkedTypeAndRepoID(t *testing.T) {
 	assert.NoError(t, unittest.PrepareTestDatabase())
+
+	// commit_comment is a brand-new table with no fixture rows, so its case needs a
+	// freshly-created comment + attachment rather than a static fixture ID
+	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
+	doer := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo.OwnerID})
+	commitComment, err := issues_model.CreateCommitComment(t.Context(), &issues_model.CreateCommitCommentOptions{
+		Doer: doer, Repo: repo, CommitSHA: "65f1bf27bc3bf70f64657658635e66094edbcb4", TreePath: "README.md", Line: 4, Content: "x",
+	})
+	assert.NoError(t, err)
+	commitCommentAttach := repo_model.Attachment{Name: "screenshot.png", UUID: uuid.New().String(), CommitCommentID: commitComment.ID}
+	assert.NoError(t, db.Insert(t.Context(), &commitCommentAttach))
+
 	testCases := []struct {
 		name             string
 		attachID         int64
@@ -27,6 +42,7 @@ func TestAttachLinkedTypeAndRepoID(t *testing.T) {
 		{"LinkedIssue", 1, unit.TypeIssues, 1},
 		{"LinkedComment", 3, unit.TypePullRequests, 1},
 		{"LinkedRelease", 9, unit.TypeReleases, 1},
+		{"LinkedCommitComment", commitCommentAttach.ID, unit.TypeCode, repo.ID},
 		{"Notlinked", 10, unit.TypeInvalid, 0},
 	}
 	for _, tc := range testCases {

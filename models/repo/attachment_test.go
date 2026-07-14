@@ -6,9 +6,13 @@ package repo_test
 import (
 	"testing"
 
+	"gitea.dev/models/db"
+	issues_model "gitea.dev/models/issues"
 	repo_model "gitea.dev/models/repo"
 	"gitea.dev/models/unittest"
+	user_model "gitea.dev/models/user"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -116,4 +120,74 @@ func TestGetUnlinkedAttachmentsByUserID(t *testing.T) {
 	attachments, err = repo_model.GetUnlinkedAttachmentsByUserID(t.Context(), 1)
 	assert.NoError(t, err)
 	assert.Empty(t, attachments)
+}
+
+func newTestCommitComment(t *testing.T) *issues_model.CommitComment {
+	t.Helper()
+	repo := unittest.AssertExistsAndLoadBean(t, &repo_model.Repository{ID: 1})
+	doer := unittest.AssertExistsAndLoadBean(t, &user_model.User{ID: repo.OwnerID})
+	comment, err := issues_model.CreateCommitComment(t.Context(), &issues_model.CreateCommitCommentOptions{
+		Doer:      doer,
+		Repo:      repo,
+		CommitSHA: "65f1bf27bc3bf70f64657658635e66094edbcb4",
+		TreePath:  "README.md",
+		Line:      4,
+		Content:   "x",
+	})
+	assert.NoError(t, err)
+	return comment
+}
+
+func TestGetAndDeleteAttachmentsByCommitCommentID(t *testing.T) {
+	assert.NoError(t, unittest.PrepareTestDatabase())
+
+	comment := newTestCommitComment(t)
+	attach1 := repo_model.Attachment{Name: "a.png", UUID: uuid.New().String()}
+	attach2 := repo_model.Attachment{Name: "b.png", UUID: uuid.New().String()}
+	assert.NoError(t, db.Insert(t.Context(), &attach1))
+	assert.NoError(t, db.Insert(t.Context(), &attach2))
+	assert.NoError(t, issues_model.UpdateCommitCommentAttachments(t.Context(), comment, []string{attach1.UUID, attach2.UUID}))
+
+	attachments, err := repo_model.GetAttachmentsByCommitCommentID(t.Context(), comment.ID)
+	assert.NoError(t, err)
+	assert.Len(t, attachments, 2)
+
+	count, err := repo_model.DeleteAttachmentsByCommitComment(t.Context(), comment.ID, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	attachments, err = repo_model.GetAttachmentsByCommitCommentID(t.Context(), comment.ID)
+	assert.NoError(t, err)
+	assert.Empty(t, attachments)
+}
+
+// TestCountAndDeleteOrphanedAttachments_CommitComment is the single most important
+// regression test for this feature: prior attempts at "comments on commits" reportedly
+// failed because attachments bound only to a comment (no IssueID/ReleaseID) were either
+// invisible to the orphan sweep, or downloadable only by their uploader. This proves the
+// orphan sweep now recognizes CommitCommentID, while a still-valid one is left alone.
+func TestCountAndDeleteOrphanedAttachments_CommitComment(t *testing.T) {
+	assert.NoError(t, unittest.PrepareTestDatabase())
+
+	comment := newTestCommitComment(t)
+
+	valid := repo_model.Attachment{Name: "valid.png", UUID: uuid.New().String(), CommitCommentID: comment.ID}
+	assert.NoError(t, db.Insert(t.Context(), &valid))
+
+	// simulates the comment row having been removed by something other than the ORM's
+	// own cascading delete (issues_model.DeleteCommitComment) -- e.g. a raw SQL cleanup
+	orphaned := repo_model.Attachment{Name: "orphaned.png", UUID: uuid.New().String(), CommitCommentID: comment.ID + 999999}
+	assert.NoError(t, db.Insert(t.Context(), &orphaned))
+
+	before, err := repo_model.CountOrphanedAttachments(t.Context())
+	assert.NoError(t, err)
+
+	assert.NoError(t, repo_model.DeleteOrphanedAttachments(t.Context()))
+
+	unittest.AssertExistsAndLoadBean(t, &repo_model.Attachment{ID: valid.ID}) // untouched
+	unittest.AssertNotExistsBean(t, &repo_model.Attachment{ID: orphaned.ID})  // swept
+
+	after, err := repo_model.CountOrphanedAttachments(t.Context())
+	assert.NoError(t, err)
+	assert.Equal(t, before-1, after)
 }
