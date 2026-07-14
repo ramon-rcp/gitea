@@ -1472,6 +1472,7 @@ func registerWebRoutes(m *web.Router, webAuth *AuthMiddleware) {
 		}, context.RepoMustNotBeArchived(), repo.MustBeNotEmpty)
 
 		m.Group("/commit-comments/{id}", func() {
+			m.Get("/attachments", repo.GetCommitCommentAttachments)
 			m.Post("", repo.UpdateCommitCommentContentRoute)
 			m.Post("/delete", repo.DeleteCommitCommentRoute)
 		}, context.RepoMustNotBeArchived(), repo.MustBeNotEmpty)
